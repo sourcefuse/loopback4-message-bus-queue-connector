@@ -32,10 +32,7 @@ export class SqsConsumerService<T extends IStreamDefinitionSQS> {
 
   async consume(): Promise<void> {
     const consumers = await this.getConsumers();
-    const consumerMap = new Map<
-      EventsInStream<T>,
-      IConsumer<T, EventsInStream<T>>
-    >();
+    const consumerMap = new Map<string, IConsumer<T, EventsInStream<T>>>();
 
     for (const consumer of consumers) {
       if (!consumer.event) {
@@ -43,7 +40,9 @@ export class SqsConsumerService<T extends IStreamDefinitionSQS> {
           `${ErrorKeys.ConsumerWithoutEventType}: ${JSON.stringify(consumer)}`,
         );
       }
-      consumerMap.set(consumer.event, consumer);
+      consumer.topic;
+      const key = this.getKey(consumer.topic, consumer.event);
+      consumerMap.set(key, consumer);
     }
 
     // eslint-disable-next-line no-void
@@ -51,7 +50,7 @@ export class SqsConsumerService<T extends IStreamDefinitionSQS> {
   }
 
   private async pollMessages(
-    consumerMap: Map<EventsInStream<T>, IConsumer<T, EventsInStream<T>>>,
+    consumerMap: Map<string, IConsumer<T, EventsInStream<T>>>,
   ): Promise<void> {
     while (this.isPolling) {
       try {
@@ -68,7 +67,11 @@ export class SqsConsumerService<T extends IStreamDefinitionSQS> {
             async (message: AnyObject) => {
               if (message.Body) {
                 const parsedMessage = JSON.parse(message.Body);
-                const consumer = consumerMap.get(parsedMessage.event);
+                const key = this.getKey(
+                  parsedMessage.topic,
+                  parsedMessage.event,
+                );
+                const consumer = consumerMap.get(key);
                 if (consumer) {
                   await consumer.handler(parsedMessage.data);
                   // Delete the message after successful processing
@@ -98,5 +101,9 @@ export class SqsConsumerService<T extends IStreamDefinitionSQS> {
 
   async stop() {
     this.isPolling = false;
+  }
+
+  private getKey(topic: string, event: keyof T['messages']): string {
+    return `${topic}.${String(event)}}`;
   }
 }

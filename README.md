@@ -35,12 +35,34 @@ export class MyApplication extends BootMixin(ServiceMixin(RepositoryMixin(RestAp
 }
 ```
 
+#### SQS Config
+```ts
+const config = {
+  initObservers: true,
+  clientConfig: {
+    region: "aws-region",
+    credentials: {
+      accessKeyId: "aws-access-key-id",
+      secretAccessKey: "aws-secret-access-key",
+    },
+    maxAttempts: 3, // Maximum number of attempts to retry
+    retryMode: 'standard', // Retry mode, standard or exponential
+  },
+  queueUrl: "sqs-queue-url",
+  groupId: "group-ids",
+  maxNumberOfMessages: "max-number-of-messages",
+  waitTimeSeconds: "??",
+  topics: [/*supported topics*/],
+}
+```
+Please follow the [AWS SDK for JavaScript](https://docs.aws.amazon.com/sdk-for-javascript/v2/developer-guide/sqs-examples-send-receive-messages.html) for more information on the configuration.
+
 ### Redis
 ```ts
 // WIP
 ```
 
-## Product and consume SQS event
+## Produce and consume SQS event
 Topic: `topicTransform` <br />
 Event: `QueueEvent.Transform` <br />
 
