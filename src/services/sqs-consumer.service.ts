@@ -104,6 +104,6 @@ export class SqsConsumerService<T extends IStreamDefinitionSQS> {
   }
 
   private getKey(topic: string, event: keyof T['messages']): string {
-    return `${topic}.${String(event)}}`;
+    return `${topic}.${String(event)}}`; //TODO: this will be groupId.event
   }
 }

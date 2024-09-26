@@ -1,4 +1,8 @@
-import {SQSClientConfig as AWSSQSClientConfig} from '@aws-sdk/client-sqs';
+import {
+  MessageAttributeValue,
+  SQSClientConfig as AWSSQSClientConfig,
+} from '@aws-sdk/client-sqs';
+
 export interface SqsClientOptions {
   clientConfig: SQSClientConfig;
   queueUrls?: string[];
@@ -34,7 +38,7 @@ export interface Producer<Stream extends IStreamDefinitionSQS> {
   send<Type extends EventsInStream<Stream>>(
     type: Type,
     payload: Stream['messages'][Type][],
-    key?: string,
+    options?: SqsSendMessageOptions,
   ): Promise<void>;
 }
 
@@ -49,12 +53,15 @@ export type StreamHandler<
 
 export interface SqsConfig {
   initObservers: boolean;
-  // topics: ['Topics.SqsProducer'],
   clientConfig: AWSSQSClientConfig;
-
   queueUrl: string;
-  groupId: string;
   maxNumberOfMessages: number;
   waitTimeSeconds: number;
-  topics: Array<string>;
 }
+
+export type SqsSendMessageOptions = {
+  groupId?: string;
+  delaySeconds?: number;
+  messageAttributes?: Record<string, MessageAttributeValue>;
+  messageDeduplicationId?: string;
+};

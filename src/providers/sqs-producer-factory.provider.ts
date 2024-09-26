@@ -1,11 +1,16 @@
 import {inject, Provider} from '@loopback/core';
 import {ILogger, LOGGER} from '@sourceloop/core';
-import {SQSClient, SendMessageCommand} from '@aws-sdk/client-sqs';
+import {
+  SQSClient,
+  SendMessageCommand,
+  SendMessageCommandInput,
+} from '@aws-sdk/client-sqs';
 import {SqsClientBindings} from '../sqskeys';
 import {
   IStreamDefinitionSQS,
   ProducerFactoryType,
   SqsConfig,
+  SqsSendMessageOptions,
 } from '../sqstypes';
 import {ErrorKeys} from '../error-keys';
 
@@ -27,19 +32,21 @@ export class SqsProducerFactoryProvider<T extends IStreamDefinitionSQS>
         send: async <Type extends keyof T['messages']>(
           type: Type,
           payload: T['messages'][Type][],
+          options: SqsSendMessageOptions = {},
         ): Promise<void> => {
           try {
             await Promise.all(
               payload.map(async message => {
-                const params = {
+                const params: SendMessageCommandInput = {
                   QueueUrl: this.client.queueUrl,
                   MessageBody: JSON.stringify({
                     event: type,
                     data: message,
                   }),
-                  ...(this.client.groupId && {
-                    MessageGroupId: this.client.groupId,
-                  }),
+                  MessageGroupId: options.groupId,
+                  DelaySeconds: options.delaySeconds,
+                  MessageAttributes: options.messageAttributes,
+                  MessageDeduplicationId: options.messageDeduplicationId,
                 };
                 const command = new SendMessageCommand(params);
                 const result = await this.clientsqs.send(command);
