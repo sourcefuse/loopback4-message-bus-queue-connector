@@ -1,7 +1,7 @@
 import {BindingKey, BindingTemplate, extensionFor} from '@loopback/core';
 import {SQSClientConfig as AWSSQSClientConfig} from '@aws-sdk/client-sqs';
 import {MessageBusQueueConnectorsComponent} from './component';
-import {SqsConsumerService} from './services/sqs-consumer.service';
+import {SqsConsumerService} from './services';
 import {
   IStreamDefinitionSQS,
   Producer,
@@ -17,9 +17,9 @@ export namespace SqsClientBindings {
     BindingKey.create<MessageBusQueueConnectorsComponent>(
       `${QueueNamespace}.MessageBusQueueConnectorsComponent`,
     );
-  export const ConsumerService = BindingKey.create<
-    SqsConsumerService<IStreamDefinitionSQS>
-  >(`${QueueNamespace}.SqsConsumerService`);
+  export const ConsumerService = BindingKey.create<SqsConsumerService>(
+    `${QueueNamespace}.SqsConsumerService`,
+  );
   export const SqsClient = BindingKey.create<SqsConfig>(
     `${QueueNamespace}.SqsClient`,
   );
@@ -39,9 +39,9 @@ export namespace SqsClientBindings {
   export const LifeCycleGroup = `${QueueNamespace}.SQS_OBSERVER_GROUP`;
 }
 
-export const producerKey = (topic: string) => {
+export const producerKey = (groupId?: string) => {
   return BindingKey.create<Producer<IStreamDefinitionSQS>>(
-    `${QueueNamespace}.producer.${topic}`,
+    `${QueueNamespace}.producer.${groupId}`,
   );
 };
 
@@ -55,9 +55,9 @@ export const eventHandlerKey = <
     `${QueueNamespace}.eventhandler.${event as string}`,
   );
 
-export const ConsumerExtensionPoint = BindingKey.create<
-  SqsConsumerService<never>
->(`${QueueNamespace}.ConsumerExtensionPoint`);
+export const ConsumerExtensionPoint = BindingKey.create<SqsConsumerService>(
+  `${QueueNamespace}.ConsumerExtensionPoint`,
+);
 
 export const asConsumer: BindingTemplate = binding => {
   extensionFor(ConsumerExtensionPoint.key)(binding);

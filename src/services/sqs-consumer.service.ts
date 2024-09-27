@@ -1,15 +1,10 @@
-import {AnyObject} from '@loopback/repository';
 import {extensionPoint, extensions, Getter, inject} from '@loopback/core';
-import {
-  EventsInStream,
-  IConsumer,
-  IStreamDefinitionSQS,
-  SqsConfig,
-} from '../sqstypes';
+import {SqsConfig, SqsConsumer} from '../sqstypes';
 import {ConsumerExtensionPoint, SqsClientBindings} from '../sqskeys';
 import {
-  ReceiveMessageCommand,
   DeleteMessageCommand,
+  Message,
+  ReceiveMessageCommand,
   SQSClient,
 } from '@aws-sdk/client-sqs';
 import {ILogger, LOGGER} from '@sourceloop/core';
@@ -18,21 +13,21 @@ import {ErrorKeys} from '../error-keys';
 @extensionPoint(ConsumerExtensionPoint.key)
 /* It creates an SQS consumer client, polls messages from the queue, 
 and processes them using registered consumers */
-export class SqsConsumerService<T extends IStreamDefinitionSQS> {
+export class SqsConsumerService {
   private isPolling = true;
 
   constructor(
     @extensions()
-    private getConsumers: Getter<IConsumer<T, keyof T['messages']>[]>,
+    private getConsumers: Getter<SqsConsumer[]>,
     @inject(SqsClientBindings.SqsClient)
-    private client: SqsConfig,
+    private clientConfig: SqsConfig,
     @inject(LOGGER.LOGGER_INJECT) private readonly logger: ILogger,
     private clientsqs = new SQSClient({}),
   ) {}
 
   async consume(): Promise<void> {
     const consumers = await this.getConsumers();
-    const consumerMap = new Map<string, IConsumer<T, EventsInStream<T>>>();
+    const consumerMap = new Map<string, SqsConsumer>();
 
     for (const consumer of consumers) {
       if (!consumer.event) {
@@ -40,8 +35,7 @@ export class SqsConsumerService<T extends IStreamDefinitionSQS> {
           `${ErrorKeys.ConsumerWithoutEventType}: ${JSON.stringify(consumer)}`,
         );
       }
-      consumer.topic;
-      const key = this.getKey(consumer.topic, consumer.event);
+      const key = this.getKey(consumer.event, consumer.groupId);
       consumerMap.set(key, consumer);
     }
 
@@ -50,34 +44,37 @@ export class SqsConsumerService<T extends IStreamDefinitionSQS> {
   }
 
   private async pollMessages(
-    consumerMap: Map<string, IConsumer<T, EventsInStream<T>>>,
+    consumerMap: Map<string, SqsConsumer>,
   ): Promise<void> {
     while (this.isPolling) {
       try {
         const data = await this.clientsqs.send(
           new ReceiveMessageCommand({
-            QueueUrl: this.client.queueUrl,
-            MaxNumberOfMessages: this.client.maxNumberOfMessages, // Adjust based on your needs
-            WaitTimeSeconds: this.client.waitTimeSeconds,
+            QueueUrl: this.clientConfig.queueUrl,
+            MaxNumberOfMessages: this.clientConfig.maxNumberOfMessages, // Adjust based on your needs
+            WaitTimeSeconds: this.clientConfig.waitTimeSeconds,
           }),
         );
 
         if (data.Messages) {
           const messagePromises = data.Messages.map(
-            async (message: AnyObject) => {
+            async (message: Message) => {
               if (message.Body) {
                 const parsedMessage = JSON.parse(message.Body);
                 const key = this.getKey(
-                  parsedMessage.topic,
                   parsedMessage.event,
+                  message.Attributes?.MessageGroupId,
                 );
+
                 const consumer = consumerMap.get(key);
                 if (consumer) {
-                  await consumer.handler(parsedMessage.data);
+                  await consumer.handler(parsedMessage.data, {
+                    ...message,
+                  });
                   // Delete the message after successful processing
                   await this.clientsqs.send(
                     new DeleteMessageCommand({
-                      QueueUrl: this.client.queueUrl,
+                      QueueUrl: this.clientConfig.queueUrl,
                       ReceiptHandle: message.ReceiptHandle,
                     }),
                   );
@@ -103,7 +100,10 @@ export class SqsConsumerService<T extends IStreamDefinitionSQS> {
     this.isPolling = false;
   }
 
-  private getKey(topic: string, event: keyof T['messages']): string {
-    return `${topic}.${String(event)}}`; //TODO: this will be groupId.event
+  private getKey(event: string, groupId?: string): string {
+    if (this.clientConfig.queueType === 'standard') {
+      return `${String(event)}`;
+    }
+    return `${groupId}.${String(event)}`;
   }
 }

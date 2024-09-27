@@ -1,4 +1,5 @@
 import {
+  Message,
   MessageAttributeValue,
   SQSClientConfig as AWSSQSClientConfig,
 } from '@aws-sdk/client-sqs';
@@ -43,7 +44,7 @@ export interface Producer<Stream extends IStreamDefinitionSQS> {
 }
 
 export type ProducerFactoryType<Stream extends IStreamDefinitionSQS> = (
-  topic: Stream['topic'],
+  groupId?: string,
 ) => Producer<Stream>;
 
 export type StreamHandler<
@@ -57,11 +58,37 @@ export interface SqsConfig {
   queueUrl: string;
   maxNumberOfMessages: number;
   waitTimeSeconds: number;
+  groupIds?: string[];
+  queueType: 'standard' | 'fifo';
 }
 
 export type SqsSendMessageOptions = {
-  groupId?: string;
   delaySeconds?: number;
   messageAttributes?: Record<string, MessageAttributeValue>;
   messageDeduplicationId?: string;
 };
+
+/**
+ * Sqs message without stringifed body
+ * */
+export type SqsMessage = Omit<Message, 'Body'>;
+
+/**
+ * consumer interface for sqs
+ * */
+export interface SqsConsumer<Payload = {}> {
+  /*
+   * subscribed group id for consumer
+   * */
+  groupId?: string;
+  /**
+   * subscribed event
+   * */
+  event: string;
+  /**
+   * handler will be called when a message is received for configured groupId and event name
+   * @param payload - parsed json object from sqs message body
+   * @param message - sqs message object without string body
+   * */
+  handler(payload: Payload, message: SqsMessage): Promise<void>;
+}

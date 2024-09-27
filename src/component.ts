@@ -1,12 +1,12 @@
 import {
   Application,
-  injectable,
+  BindingScope,
   Component,
   config,
   ContextTags,
   CoreBindings,
   inject,
-  BindingScope,
+  injectable,
 } from '@loopback/core';
 import {MessageBusQueueConnectorsComponentBindings} from './keys';
 import {
@@ -32,7 +32,7 @@ export class MessageBusQueueConnectorsComponent implements Component {
     @config()
     private options: MessageBusQueueConnectorsComponentOptions = DEFAULT_MESSAGE_BUS_QUEUE_CONNECTORS_OPTIONS,
     @inject(SqsClientBindings.SqsClient)
-    private client: SqsConfig,
+    private clientConfig: SqsConfig,
   ) {
     this.application
       .bind(SqsClientBindings.ProducerFactory)
@@ -45,12 +45,17 @@ export class MessageBusQueueConnectorsComponent implements Component {
       SqsClientBindings.ProducerFactory,
     );
 
-    this.client.topics.forEach(topic => {
+    this.clientConfig.groupIds?.forEach(groupId => {
       this.application
-        .bind(producerKey(topic))
-        .to(producerFactory(topic))
+        .bind(producerKey(groupId))
+        .to(producerFactory(groupId))
         .inScope(BindingScope.SINGLETON);
     });
+    // Default binding for Producer with no group id
+    this.application
+      .bind(producerKey())
+      .to(producerFactory())
+      .inScope(BindingScope.SINGLETON);
 
     this.application.bind(SqsClientBindings.ConsumerConfiguration).to({});
     this.application
